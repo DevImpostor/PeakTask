@@ -1,0 +1,334 @@
+﻿@page "/"
+
+<PageTitle>Index</PageTitle>
+
+<MudGrid>
+    @*-- Title --*@
+    <MudItem>
+        <MudText Typo="Typo.h4" GutterBottom="true">Tasks</MudText>
+    </MudItem>
+
+    @*-- Group By Options --*@
+    <MudItem>
+        <MudStack Row="true">
+            @foreach (var groupOption in _groupByOptions)
+            {
+                <MudButton StartIcon="@groupOption.Icon"
+                           Color="Color.Primary"
+                           OnClick="(args) => OnChangeGroupOption(groupOption)"
+                           Variant="@((groupOption.Name == _selectedGroupOption.Name) ? Variant.Filled : Variant.Outlined)">
+                    @groupOption.Name
+                </MudButton>
+            }
+        </MudStack>
+    </MudItem>
+
+    <MudItem xs="12">
+        <MudDropContainer T="DropItem" Items="_taskItems" ItemsSelector="@((item,dropzone) => item.Group == dropzone)" ItemDropped="ItemUpdated" Class="d-flex flex-wrap flex-grow-1">
+            <ChildContent>
+                @foreach (var group in _selectedGroupOption.GroupItems)
+                {
+                        var dropzone = group.Name;
+                    <MudPaper Class="ma-4 flex-grow-1 mud-background-gray">
+                        <MudList Clickable="true" Class="d-flex flex-column mud-height-full">
+                            <MudListSubheader>
+                                <MudStack Row="true">
+                                    <MudStack Spacing="0" Style="width:100%">
+                                        <MudText Color="Color.Primary" Class="my-auto" Typo="Typo.h5">@dropzone</MudText>
+                                        <MudText Color="Color.Info" Class="my-auto" Typo="Typo.subtitle2"> 12 Tasks</MudText>
+                                    </MudStack>
+
+                                    <MudIconButton Icon="@Icons.Filled.Add" />
+                                </MudStack>
+                            </MudListSubheader>
+                            <MudDivider />
+                            <MudDropZone T="DropItem" Identifier="@dropzone" Class="flex-grow-1" AllowReorder="true" />
+                        </MudList>
+                    </MudPaper>
+                }
+            </ChildContent>
+            <ItemRenderer>
+                <MudListItem Text="@($"{(context.Order + 1).ToString()}. {context.Name}" )" />
+            </ItemRenderer>
+        </MudDropContainer>
+    </MudItem>
+
+</MudGrid>
+
+@code
+{
+            List<TaskGroupOption> _groupByOptions = new List<TaskGroupOption>()
+    {
+        new TaskGroupOption()
+        {
+            Name = "By Day",
+            Icon = Icons.Material.Filled.CalendarToday,
+            GroupItems = new List<TaskGroupItem>()
+            {
+                new TaskGroupItem(){ Name = "Monday" },
+                new TaskGroupItem(){ Name = "Tuesday" },
+                new TaskGroupItem(){ Name = "Wenesday" },
+                new TaskGroupItem(){ Name = "Thuresday" },
+                new TaskGroupItem(){ Name = "Friday" },
+                new TaskGroupItem(){ Name = "Weekend" },
+            }
+        },
+         new TaskGroupOption()
+        {
+            Name = "By Person",
+            Icon = Icons.Material.Filled.Person,
+            GroupItems = new List<TaskGroupItem>()
+            {
+                new TaskGroupItem(){ Name = "Adam Lepley" },
+                new TaskGroupItem(){ Name = "Eugene Clynes" },
+                new TaskGroupItem(){ Name = "Erik Wilson" },
+                new TaskGroupItem(){ Name = "Kyle Weiher" }
+            }
+        },
+          new TaskGroupOption()
+        {
+            Name = "By Client",
+            Icon = Icons.Material.Filled.Handshake,
+            GroupItems = new List<TaskGroupItem>()
+            {
+                new TaskGroupItem(){ Name = "A Better Way" },
+                new TaskGroupItem(){ Name = "Thermo Fisher" },
+                new TaskGroupItem(){ Name = "New Peak Solutions" }
+            }
+        }
+    };
+
+            TaskGroupOption _selectedGroupOption { set; get; } = null;
+
+            void OnChangeGroupOption(TaskGroupOption groupOption)
+            {
+                _selectedGroupOption = groupOption;
+
+                _taskItems = groupOption.Name switch
+                {
+                    "By Day" => _tasks
+                        .Select(a => new DropItem()
+                        {
+                            Name = a.Name,
+                            Group = a.DayPlanned,
+                            Order = a.DayOrder,
+                            Item = a
+                        })
+                         .OrderBy(a => a.Item.DayOrder)
+                         .ToList(),
+                    "By Person" => _tasks
+                       .Select(a => new DropItem()
+                       {
+                           Name = a.Name,
+                           Group = a.PersonAssigned,
+                           Order = a.PersonOrder,
+                           Item = a
+                       })
+                        .OrderBy(a => a.Item.PersonOrder)
+                        .ToList(),
+                    "By Client" => _tasks
+                        .Select(a => new DropItem()
+                        {
+                            Name = a.Name,
+                            Group = a.ClientName,
+                            Order = a.ClientOrder,
+                            Item = a
+                        })
+                        .OrderBy(a => a.Item.ClientOrder)
+                        .ToList()
+
+                };
+            }
+
+            private void ItemUpdated(MudItemDropInfo<DropItem> dropItem)
+            {
+                var currentOrder = dropItem.IndexInZone;
+                var currentGroup = dropItem.DropzoneIdentifier;
+
+                dropItem.Item.Group = currentGroup;
+
+                var dropItemDisplaced = _taskItems.FirstOrDefault(a => a.Group == currentGroup && a.Order == currentOrder);
+
+                if (dropItemDisplaced is not null)
+                {
+                    dropItemDisplaced.Order = dropItem.Item.Order;
+                }
+
+                if (dropItem.Item.Item.PersonAssigned != currentGroup)
+                {
+                    for (int i = dropItem.Item.Order; i < _taskItems.Count(a => a.Item.PersonAssigned == dropItem.Item.Item.PersonAssigned) - 1; i++)
+                    {
+                        _taskItems[i].Order = _taskItems[i].Order - 1;
+                        var foundTask = _tasks.FirstOrDefault(a => a.ID == _taskItems[i].Item.ID);
+
+                        if (foundTask is not null)
+                        {
+                            switch (_selectedGroupOption.Name)
+                            {
+                                case "By Day":
+                                    foundTask.DayOrder = _taskItems[i].Order;
+                                    break;
+                                case "By Person":
+                                    foundTask.PersonOrder = _taskItems[i].Order;
+                                    break;
+                                case "By Client":
+                                    foundTask.ClientOrder = _taskItems[i].Order;
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
+                    }
+                }
+
+                dropItem.Item.Order = currentOrder;
+
+                var taskToUpdate = _tasks.FirstOrDefault(a => a.ID == dropItem.Item.Item.ID);
+
+                if (taskToUpdate is not null)
+                {
+                    switch (_selectedGroupOption.Name)
+                    {
+                        case "By Day":
+                            taskToUpdate.DayOrder = currentOrder;
+                            taskToUpdate.DayPlanned = currentGroup;
+                            break;
+                        case "By Person":
+                            taskToUpdate.PersonOrder = currentOrder;
+                            taskToUpdate.PersonAssigned = currentGroup;
+                            break;
+                        case "By Client":
+                            taskToUpdate.ClientOrder = currentOrder;
+                            taskToUpdate.ClientName = currentGroup;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+
+    private List<DropItem> _taskItems = new()
+    {
+        new DropItem() { Name = "Item A", Group = "1", Order = 0 },
+        new DropItem() { Name = "Item B", Group = "1", Order = 1 },
+        new DropItem() { Name = "Item C", Group = "1", Order = 2 },
+        new DropItem() { Name = "Item D", Group = "2", Order = 0 },
+        new DropItem() { Name = "Item E", Group = "2", Order = 1 },
+    };
+
+        private List<TaskItem> _tasks = new()
+        {
+            new TaskItem()
+            {
+                Name = "Task A",
+                DayPlanned = "Monday",
+                ClientName = "A Better Way",
+                ClientOrder = 0,
+                DayOrder = 0,
+                PersonAssigned = "Adam Lepley",
+                PersonOrder = 0,
+                WeekOffset = 0
+            },
+            new TaskItem()
+            {
+                Name = "Task B",
+                DayPlanned = "Monday",
+                ClientName = "A Better Way",
+                ClientOrder = 1,
+                DayOrder = 1,
+                PersonAssigned = "Eugene Clynes",
+                PersonOrder = 0,
+                WeekOffset = 0
+            },
+            new TaskItem()
+            {
+                Name = "Task C",
+                DayPlanned = "Tuesday",
+                ClientName = "A Better Way",
+                ClientOrder = 2,
+                DayOrder = 0,
+                PersonAssigned = "Adam Lepley",
+                PersonOrder = 1,
+                WeekOffset = 0
+            },
+            new TaskItem()
+            {
+                Name = "Task D",
+                DayPlanned = "Wenesday",
+                ClientName = "A Better Way",
+                ClientOrder = 3,
+                DayOrder = 0,
+                PersonAssigned = "Adam Lepley",
+                PersonOrder = 2,
+                WeekOffset = 0
+            },
+            new TaskItem()
+            {
+                Name = "Task E",
+                DayPlanned = "Friday",
+                ClientName = "A Better Way",
+                ClientOrder = 4,
+                DayOrder = 0,
+                PersonAssigned = "Erik Wilson",
+                PersonOrder = 0,
+                WeekOffset = 0
+            },
+            new TaskItem()
+            {
+                Name = "Task F",
+                DayPlanned = "Weekend",
+                ClientName = "A Better Way",
+                ClientOrder = 5,
+                DayOrder = 0,
+                PersonAssigned = "Adam Lepley",
+                PersonOrder = 3,
+                WeekOffset = 0
+            }
+        };
+
+        public class DropItem
+        {
+            public string Name { get; set; } = string.Empty;
+            public string Group { get; set; } = string.Empty;
+            public int Order { get; set; } = 0;
+            public TaskItem Item { get; set; } = null;
+        }
+
+        public class TaskItem
+        {
+            public string ID { get; set; } = string.Empty;
+            public string Name { get; set; } = string.Empty;
+            public int WeekOffset { get; set; } = 0;
+            public string DayPlanned { get; set; } = string.Empty;
+            public string PersonAssigned { get; set; } = string.Empty;
+            public string ClientName { get; set; } = string.Empty;
+            public int DayOrder { get; set; } = 0;
+            public int PersonOrder { get; set; } = 0;
+            public int ClientOrder { get; set; } = 0;
+
+            public TaskItem()
+            {
+                ID = Guid.NewGuid().ToString();
+            }
+        }
+
+        public class TaskGroupOption
+        {
+            public string Name { get; set; } = string.Empty;
+            public string Icon { get; set; } = String.Empty;
+            public List<TaskGroupItem> GroupItems = new List<TaskGroupItem>();
+
+        }
+
+        public class TaskGroupItem
+        {
+            public string Name { get; set; } = string.Empty;
+            public int Total { get; set; } = 0;
+        }
+
+        protected override void OnInitialized()
+        {
+            OnChangeGroupOption(_groupByOptions.FirstOrDefault());
+
+        }
+    }
